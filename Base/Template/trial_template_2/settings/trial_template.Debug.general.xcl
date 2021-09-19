@@ -1,0 +1,13 @@
+"C:\Program Files\IAR Systems\Embedded Workbench 9.0\arm\bin\armPROC.dll" 
+
+"C:\Program Files\IAR Systems\Embedded Workbench 9.0\arm\bin\armSIM2.dll" 
+
+"D:\SchoolExp\EmbSys\Template\trial_template_2\Debug\Exe\trial_template.out" 
+
+--plugin="C:\Program Files\IAR Systems\Embedded Workbench 9.0\arm\bin\armbat.dll" 
+
+--device_macro="C:\Program Files\IAR Systems\Embedded Workbench 9.0\arm\config\debugger\ST\STM32F1xx.dmac" 
+
+
+
+

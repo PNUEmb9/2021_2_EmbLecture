@@ -1,0 +1,88 @@
+###############################################################################
+#
+# IAR ANSI C/C++ Compiler V8.22.1.15669/W32 for ARM       16/Sep/2021  19:48:52
+# Copyright 1999-2018 IAR Systems AB.
+#
+#    Cpu mode     =  thumb
+#    Endian       =  little
+#    Source file  =  C:\Users\pnu5\Documents\project_9\user\main.c
+#    Command line =  
+#        -f C:\Users\pnu5\AppData\Local\Temp\EW3022.tmp
+#        (C:\Users\pnu5\Documents\project_9\user\main.c -D USE_STDPERIPH_DRIVER
+#        -D STM32F10X_CL -lC C:\Users\pnu5\Documents\project_9\Debug\List -o
+#        C:\Users\pnu5\Documents\project_9\Debug\Obj --no_cse --no_unroll
+#        --no_inline --no_code_motion --no_tbaa --no_clustering --no_scheduling
+#        --debug --endian=little --cpu=Cortex-M3 -e --fpu=None --dlib_config
+#        "C:\Program Files (x86)\IAR Systems\Embedded Workbench
+#        8.0\arm\INC\c\DLib_Config_Normal.h" -I
+#        C:\Users\pnu5\Documents\project_9\libraries\CMSIS\DeviceSupport\ -I
+#        C:\Users\pnu5\Documents\project_9\libraries\CMSIS\DeviceSupport\Startup\
+#        -I
+#        C:\Users\pnu5\Documents\project_9\libraries\STM32F10x_StdPeriph_Driver_v3.5\inc\
+#        -I
+#        C:\Users\pnu5\Documents\project_9\libraries\STM32F10x_StdPeriph_Driver_v3.5\src\
+#        -I C:\Users\pnu5\Documents\project_9\user\ -I
+#        C:\Users\pnu5\Documents\project_9\user\inc\ -Ol -I "C:\Program Files
+#        (x86)\IAR Systems\Embedded Workbench 8.0\arm\CMSIS\Core\Include\" -I
+#        "C:\Program Files (x86)\IAR Systems\Embedded Workbench
+#        8.0\arm\CMSIS\DSP\Include\")
+#    Locale       =  C
+#    List file    =  C:\Users\pnu5\Documents\project_9\Debug\List\main.lst
+#    Object file  =  C:\Users\pnu5\Documents\project_9\Debug\Obj\main.o
+#
+###############################################################################
+
+C:\Users\pnu5\Documents\project_9\user\main.c
+      1          #include "stm32f10x.h"
+
+   \                                 In section .text, align 4, keep-with-next
+      2          int main(void)
+      3          {
+      4            *((volatile unsigned int *)0x40021018) = 0x00000020;
+   \                     main: (+1)
+   \   00000000   0x2020             MOVS     R0,#+32
+   \   00000002   0x4905             LDR.N    R1,??main_0      ;; 0x40021018
+   \   00000004   0x6008             STR      R0,[R1, #+0]
+      5            *((volatile unsigned int *)0x40011400) = 0x00000100;
+   \   00000006   0xF44F 0x7080      MOV      R0,#+256
+   \   0000000A   0x4904             LDR.N    R1,??main_0+0x4  ;; 0x40011400
+   \   0000000C   0x6008             STR      R0,[R1, #+0]
+      6          
+      7            while (1) {
+      8              *((volatile unsigned int *)0x40011410) = 0x00000004;
+   \                     ??main_1: (+1)
+   \   0000000E   0x2004             MOVS     R0,#+4
+   \   00000010   0x4903             LDR.N    R1,??main_0+0x8  ;; 0x40011410
+   \   00000012   0x6008             STR      R0,[R1, #+0]
+   \   00000014   0xE7FB             B.N      ??main_1
+   \   00000016   0xBF00             Nop      
+   \                     ??main_0:
+   \   00000018   0x40021018         DC32     0x40021018
+   \   0000001C   0x40011400         DC32     0x40011400
+   \   00000020   0x40011410         DC32     0x40011410
+      9            }
+     10            return 0;
+                   ^
+Warning[Pe111]: statement is unreachable
+     11          }
+
+   Maximum stack usage in bytes:
+
+   .cstack Function
+   ------- --------
+       0   main
+
+
+   Section sizes:
+
+   Bytes  Function/Label
+   -----  --------------
+      36  main
+
+ 
+ 36 bytes in section .text
+ 
+ 36 bytes of CODE memory
+
+Errors: none
+Warnings: 1

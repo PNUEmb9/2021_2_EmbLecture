@@ -1,0 +1,186 @@
+###############################################################################
+#
+# IAR ANSI C/C++ Compiler V9.10.2.313/W64 for ARM         17/Sep/2021  03:32:40
+# Copyright 1999-2021 IAR Systems AB.
+#
+#    Cpu mode          =  thumb
+#    Endian            =  little
+#    Source file       =
+#        D:\SchoolExp\EmbSys\Template\trial_template\user\main.c
+#    Command line      =
+#        -f
+#        D:\SchoolExp\EmbSys\Template\trial_template\Debug\Obj\user\main.o.rsp
+#        (D:\SchoolExp\EmbSys\Template\trial_template\user\main.c -D
+#        USE_STDPERIPH_DRIVER -D STM32F10X_CL -lC
+#        D:\SchoolExp\EmbSys\Template\trial_template\Debug\List\user -o
+#        D:\SchoolExp\EmbSys\Template\trial_template\Debug\Obj\user --no_cse
+#        --no_unroll --no_inline --no_code_motion --no_tbaa --no_clustering
+#        --no_scheduling --debug --endian=little --cpu=Cortex-M3 -e --fpu=None
+#        --dlib_config "C:\Program Files\IAR Systems\Embedded Workbench
+#        9.0\arm\inc\c\DLib_Config_Normal.h" -I
+#        D:\SchoolExp\EmbSys\Template\trial_template\libraries\CMSIS\DeviceSupport\
+#        -I
+#        D:\SchoolExp\EmbSys\Template\trial_template\libraries\CMSIS\DeviceSupport\Startup\
+#        -I
+#        D:\SchoolExp\EmbSys\Template\trial_template\libraries\STM32F10x_StdPeriph_Driver_v3.5\inc\
+#        -I
+#        D:\SchoolExp\EmbSys\Template\trial_template\libraries\STM32F10x_StdPeriph_Driver_v3.5\src\
+#        -I D:\SchoolExp\EmbSys\Template\trial_template\user\ -I
+#        D:\SchoolExp\EmbSys\Template\trial_template\user\inc\ -Ol -I
+#        "C:\Program Files\IAR Systems\Embedded Workbench
+#        9.0\arm\CMSIS\Core\Include\\" -I "C:\Program Files\IAR
+#        Systems\Embedded Workbench 9.0\arm\CMSIS\DSP\Include\\")
+#        --dependencies=n
+#        D:\SchoolExp\EmbSys\Template\trial_template\Debug\Obj\user\main.o.d
+#    Locale            =  C
+#    List file         =
+#        D:\SchoolExp\EmbSys\Template\trial_template\Debug\List\user\main.lst
+#    Object file       =
+#        D:\SchoolExp\EmbSys\Template\trial_template\Debug\Obj\user\main.o
+#    Runtime model:       
+#      __SystemLibrary =  DLib
+#      __dlib_version  =  6
+#      __size_limit    =  32768|ARM.EW.LINKER
+#
+###############################################################################
+
+D:\SchoolExp\EmbSys\Template\trial_template\user\main.c
+      1          #include "stm32f10x.h"
+      2          
+
+   \                                 In section .text, align 4, keep-with-next
+      3          int main(void)
+      4          {
+   \                     main: (+1)
+   \        0x0   0xB5E0             PUSH     {R5-R7,LR}
+      5            GPIO_InitTypeDef GPIO_InitInput;
+      6            GPIO_InitTypeDef GPIO_InitOutput;
+      7          
+      8            RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOC, ENABLE);
+   \        0x2   0x2101             MOVS     R1,#+1
+   \        0x4   0x2010             MOVS     R0,#+16
+   \        0x6   0x.... 0x....      BL       RCC_APB2PeriphClockCmd
+      9            GPIO_InitInput.GPIO_Pin = GPIO_Pin_2|GPIO_Pin_3|GPIO_Pin_4|GPIO_Pin_5;
+   \        0xA   0x203C             MOVS     R0,#+60
+   \        0xC   0xF8AD 0x0004      STRH     R0,[SP, #+4]
+     10            GPIO_InitInput.GPIO_Mode = GPIO_Mode_IPU;
+   \       0x10   0x2048             MOVS     R0,#+72
+   \       0x12   0xF88D 0x0007      STRB     R0,[SP, #+7]
+     11            
+     12            RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOD, ENABLE);
+   \       0x16   0x2101             MOVS     R1,#+1
+   \       0x18   0x2020             MOVS     R0,#+32
+   \       0x1A   0x.... 0x....      BL       RCC_APB2PeriphClockCmd
+     13            GPIO_InitOutput.GPIO_Pin = GPIO_Pin_2|GPIO_Pin_3|GPIO_Pin_4|GPIO_Pin_7;
+   \       0x1E   0x209C             MOVS     R0,#+156
+   \       0x20   0xF8AD 0x0000      STRH     R0,[SP, #+0]
+     14            GPIO_InitOutput.GPIO_Mode = GPIO_Mode_Out_PP;
+   \       0x24   0x2010             MOVS     R0,#+16
+   \       0x26   0xF88D 0x0003      STRB     R0,[SP, #+3]
+     15            GPIO_InitOutput.GPIO_Speed = GPIO_Speed_2MHz;
+   \       0x2A   0x2002             MOVS     R0,#+2
+   \       0x2C   0xF88D 0x0002      STRB     R0,[SP, #+2]
+     16          
+     17            GPIO_Init(GPIOC, &GPIO_InitInput);
+   \       0x30   0xA901             ADD      R1,SP,#+4
+   \       0x32   0x4813             LDR.N    R0,??main_0
+   \       0x34   0x.... 0x....      BL       GPIO_Init
+     18            GPIO_Init(GPIOD, &GPIO_InitOutput);
+   \       0x38   0x4669             MOV      R1,SP
+   \       0x3A   0x4812             LDR.N    R0,??main_0+0x4
+   \       0x3C   0x.... 0x....      BL       GPIO_Init
+   \       0x40   0xE006             B.N      ??main_1
+     19          
+     20            while (1) {
+     21              uint16_t ledPin;
+     22              uint16_t inputPin = GPIO_ReadInputData(GPIOC);
+     23              inputPin &= (GPIO_Pin_2|GPIO_Pin_3|GPIO_Pin_4|GPIO_Pin_5);
+     24              inputPin ^= (GPIO_Pin_2|GPIO_Pin_3|GPIO_Pin_4|GPIO_Pin_5);
+     25          
+     26              switch (inputPin)
+     27              {
+     28              case GPIO_Pin_2:
+     29                ledPin = GPIO_Pin_3;
+     30                break;
+     31              case GPIO_Pin_3:
+     32                ledPin = GPIO_Pin_4;
+     33                break;
+     34              case GPIO_Pin_4:
+     35                ledPin = GPIO_Pin_7;
+     36                break;
+     37              case GPIO_Pin_5:
+     38                ledPin = GPIO_Pin_2;
+     39                break;
+     40              default:
+     41                ledPin = (uint16_t)0x0000;
+   \                     ??main_2: (+1)
+   \       0x42   0x2100             MOVS     R1,#+0
+     42                break;
+   \       0x44   0xE000             B.N      ??main_3
+   \                     ??main_4: (+1)
+   \       0x46   0x2104             MOVS     R1,#+4
+     43              }
+     44          
+     45              GPIO_Write(GPIOD, ledPin);
+   \                     ??main_3: (+1)
+   \       0x48   0xB289             UXTH     R1,R1
+   \       0x4A   0x480E             LDR.N    R0,??main_0+0x4
+   \       0x4C   0x.... 0x....      BL       GPIO_Write
+   \                     ??main_1: (+1)
+   \       0x50   0x480B             LDR.N    R0,??main_0
+   \       0x52   0x.... 0x....      BL       GPIO_ReadInputData
+   \       0x56   0xF010 0x003C      ANDS     R0,R0,#0x3C
+   \       0x5A   0xF090 0x003C      EORS     R0,R0,#0x3C
+   \       0x5E   0xB280             UXTH     R0,R0
+   \       0x60   0x2804             CMP      R0,#+4
+   \       0x62   0xD006             BEQ.N    ??main_5
+   \       0x64   0x2808             CMP      R0,#+8
+   \       0x66   0xD006             BEQ.N    ??main_6
+   \       0x68   0x2810             CMP      R0,#+16
+   \       0x6A   0xD006             BEQ.N    ??main_7
+   \       0x6C   0x2820             CMP      R0,#+32
+   \       0x6E   0xD0EA             BEQ.N    ??main_4
+   \       0x70   0xE7E7             B.N      ??main_2
+   \                     ??main_5: (+1)
+   \       0x72   0x2108             MOVS     R1,#+8
+   \       0x74   0xE7E8             B.N      ??main_3
+   \                     ??main_6: (+1)
+   \       0x76   0x2110             MOVS     R1,#+16
+   \       0x78   0xE7E6             B.N      ??main_3
+   \                     ??main_7: (+1)
+   \       0x7A   0x2180             MOVS     R1,#+128
+   \       0x7C   0xE7E4             B.N      ??main_3
+   \       0x7E   0xBF00             Nop
+   \                     ??main_0:
+   \       0x80   0x4001'1000        DC32     0x40011000
+   \       0x84   0x4001'1400        DC32     0x40011400
+     46            }
+     47            return 0;
+                   ^
+Warning[Pe111]: statement is unreachable
+     48          }
+
+   Maximum stack usage in bytes:
+
+   .cstack Function
+   ------- --------
+      16   main
+        16   -> GPIO_Init
+        16   -> GPIO_ReadInputData
+        16   -> GPIO_Write
+        16   -> RCC_APB2PeriphClockCmd
+
+
+   Section sizes:
+
+   Bytes  Function/Label
+   -----  --------------
+     136  main
+
+ 
+ 136 bytes in section .text
+ 
+ 136 bytes of CODE memory
+
+Errors: none
+Warnings: 1
