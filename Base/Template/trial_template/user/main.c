@@ -1,61 +1,65 @@
 #include "stm32f10x.h"
 
+void delay() {
+  int i;
+  for(i=0; i<10000000; i++) {}
+}
+
 int main(void) {
   // GPIO 설정을 위한 InitTypeDef 변수 선언
   GPIO_InitTypeDef GPIO_InitInput;
-  GPIO_InitTypeDef GPIO_InitOutput;
+  GPIO_InitTypeDef GPIO_InitLEDOutput;
+  GPIO_InitTypeDef GPIO_InitRelayOutput;
 
-  // Input(조이스틱) 설정
-  RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOC, ENABLE);
-  // Port C의 2, 3, 4, 5번 핀에 대하여 설정
-  GPIO_InitInput.GPIO_Pin = GPIO_Pin_2|GPIO_Pin_3|GPIO_Pin_4|GPIO_Pin_5;
-  // Pull-Up 모드로 설정(스틱을 꺾으면 Low, 가만히 두면 High)
+  // Input(버튼) 설정
+  RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOD, ENABLE);
+  // Port D의 11,12번 핀에 대하여 설정
+  GPIO_InitInput.GPIO_Pin = GPIO_Pin_11|GPIO_Pin_12;
+  // Pull-Up 모드로 설정(버튼을 누르면 Low, 가만히 두면 High)
   GPIO_InitInput.GPIO_Mode = GPIO_Mode_IPU;
   
-  // OutPut(LED) 설정
-  RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOD, ENABLE);
-  // Port D의 2, 3, 4, 7번 핀에 대하여 설정
-  GPIO_InitOutput.GPIO_Pin = GPIO_Pin_2|GPIO_Pin_3|GPIO_Pin_4|GPIO_Pin_7;
-  // Push-Pull 모드로 설정(High가 인가되면 1, Low가 인가되면 0)
-  GPIO_InitOutput.GPIO_Mode = GPIO_Mode_Out_PP;
+  //Output(릴레이모듈) 설정
+  RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
+  // Port B의 8번 핀에 대하여 설정
+  GPIO_InitRelayOutput.GPIO_Pin = GPIO_Pin_8;
+  // Push-Pull 모드로 설정
+  GPIO_InitRelayOutput.GPIO_Mode = GPIO_Mode_Out_PP;
   // 저전력 모드인 2MHz로 설정
-  GPIO_InitOutput.GPIO_Speed = GPIO_Speed_2MHz;
+  GPIO_InitRelayOutput.GPIO_Speed = GPIO_Speed_2MHz;
+  
+  // OutPut(LED) 설정
+  // Port D의 7번 핀에 대하여 설정
+  GPIO_InitLEDOutput.GPIO_Pin = GPIO_Pin_7;
+  // Push-Pull 모드로 설정
+  GPIO_InitLEDOutput.GPIO_Mode = GPIO_Mode_Out_PP;
+  // 저전력 모드인 2MHz로 설정
+  GPIO_InitLEDOutput.GPIO_Speed = GPIO_Speed_2MHz;
 
   // 위에서 지정한 설정대로 각 포트를 초기화
   GPIO_Init(GPIOC, &GPIO_InitInput);
-  GPIO_Init(GPIOD, &GPIO_InitOutput);
+  GPIO_Init(GPIOD, &GPIO_InitRelayOutput);
+  GPIO_Init(GPIOD, &GPIO_InitLEDOutput);
 
   // 초기화 이후 아래 동작을 계속 반복
   while (1) {
-    uint16_t ledPin;  // 점등할 LED의 핀 번호를 저장할 변수
-    uint16_t inputPin = GPIO_ReadInputData(GPIOC); // 입력된 조이스틱의 핀 값
+    uint8_t relayInputPin = GPIO_ReadInputDataBit(GPIOD,GPIO_Pin_11);
+    uint8_t ledInputPin = GPIO_ReadInputDataBit(GPIOD,GPIO_Pin_12);
 
-    // 원하는 핀 번호를 얻기 위해 AND 연산과 XOR 연산 사용
-    inputPin &= (GPIO_Pin_2|GPIO_Pin_3|GPIO_Pin_4|GPIO_Pin_5);
-    inputPin ^= (GPIO_Pin_2|GPIO_Pin_3|GPIO_Pin_4|GPIO_Pin_5);
-
-    // 입력된 조이스틱의 방향에 따라 점등할 LED 결정
-    switch (inputPin) {
-    case GPIO_Pin_2:
-      ledPin = GPIO_Pin_3;
-      break;
-    case GPIO_Pin_3:
-      ledPin = GPIO_Pin_4;
-      break;
-    case GPIO_Pin_4:
-      ledPin = GPIO_Pin_7;
-      break;
-    case GPIO_Pin_5:
-      ledPin = GPIO_Pin_2;
-      break;
-    default:
-      // 조이스틱의 입력이 없을 경우 점등하지 않음
-      ledPin = (uint16_t)0x0000;
-      break;
+    // S1 버튼을 누를 경우(Pull-up이므로 0이 인가될 경우)
+    // 릴레이 모듈(PB8)에 delay동안 신호를 줌
+    if(relayInputPin == Bit_RESET) {
+      GPIO_SetBits(GPIOB,GPIO_Pin_8);
+      delay();
+      GPIO_ResetBits(GPIOB,GPIO_Pin_8);
     }
-
-    // 위에서 결정된 LED만 점등
-    GPIO_Write(GPIOD, ledPin);
+    
+    // S2 버튼을 누를 경우
+    // LED(PD7)에 delay동안 신호를 줌
+    if(ledInputPin == Bit_RESET) {
+      GPIO_SetBits(GPIOD,GPIO_Pin_7);
+      delay();
+      GPIO_ResetBits(GPIOD,GPIO_Pin_7);
+    }
   }
   return 0;
 }
