@@ -180,7 +180,7 @@ void UartInit(void) {
 
 void delay(void){
     int i = 0;
-    for(i=0;i<1000000;i++);
+    for(i=0;i<10000;i++);
 }
 
 void SendData(uint16_t data) {
