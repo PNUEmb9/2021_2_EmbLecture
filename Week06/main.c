@@ -211,7 +211,7 @@ int main() {
     if(msgInputPin == Bit_RESET) {
         char* pmsg = msg;
         while(*pmsg != 0) {
-            USART_SendData(USART1, *pmsg);
+            SendData(USART1, *pmsg);
             pmsg++;
             delay();
         }

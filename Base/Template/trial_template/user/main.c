@@ -1,222 +1,324 @@
 #include "stm32f10x.h"
+#include "stm32f10x_exti.h"
+#include "stm32f10x_gpio.h"
+#include "stm32f10x_usart.h"
+#include "stm32f10x_rcc.h"
 
-void SysInit(void) {
-    /* Set HSION bit */
-    /* Internal Clock Enable */
-    RCC->CR |= (uint32_t)0x00000001; //HSION
+#include "misc.h"
 
-    /* Reset SW, HPRE, PPRE1, PPRE2, ADCPRE and MCO bits */
-    RCC->CFGR &= (uint32_t)0xF0FF0000;
+/* function prototype */
+void RCC_Configure(void);
+void GPIO_Configure(void);
+void EXTI_Configure(void);
+void USART1_Init(void);
+void NVIC_Configure(void);
 
-    /* Reset HSEON, CSSON and PLLON bits */
-    RCC->CR &= (uint32_t)0xFEF6FFFF;
+void EXTI15_10_IRQHandler(void);
+void EXTI9_5_IRQHandler(void);
+void EXTI2_IRQHandler(void);
 
-    /* Reset HSEBYP bit */
-    RCC->CR &= (uint32_t)0xFFFBFFFF;
+void Delay(void);
 
-    /* Reset PLLSRC, PLLXTPRE, PLLMUL and USBPRE/OTGFSPRE bits */
-    RCC->CFGR &= (uint32_t)0xFF80FFFF;
+void sendDataUART1(uint16_t data);
 
-    /* Reset PLL2ON and PLL3ON bits */
-    RCC->CR &= (uint32_t)0xEBFFFFFF;
+char sw_state; // 기본 상태; 1234 방향으로 led 점멸 중
 
-    /* Disable all interrupts and clear pending bits  */
-    RCC->CIR = 0x00FF0000;
+//---------------------------------------------------------------------------------------------------
 
-    /* Reset CFGR2 register */
-    RCC->CFGR2 = 0x00000000;
+void RCC_Configure(void) // stm32f10x_rcc.h 참고
+{
+	// TODO: Enable the APB2 peripheral clock using the function 'RCC_APB2PeriphClockCmd'
+	
+	/* UART TX/RX port clock enable */
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
+	
+	/* JoyStick Up/Down port clock enable */
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOC, ENABLE);
+	
+	/* LED port clock enable */
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOD, ENABLE);
+
+	/* USART1 clock enable */
+    RCC_APB2PeriphClockCmd(RCC_APB2ENR_USART1EN, ENABLE);
+
+	
+	/* Alternate Function IO clock enable */
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_AFIO, ENABLE);
 }
 
-void SetSysClock(void) {
-    volatile uint32_t StartUpCounter = 0, HSEStatus = 0;
-    /* SYSCLK, HCLK, PCLK2 and PCLK1 configuration ---------------------------*/
-    /* Enable HSE */
-    RCC->CR |= ((uint32_t)RCC_CR_HSEON);
-    /* Wait till HSE is ready and if Time out is reached exit */
-    do {
-        HSEStatus = RCC->CR & RCC_CR_HSERDY;
-        StartUpCounter++;
-    } while ((HSEStatus == 0) && (StartUpCounter != HSE_STARTUP_TIMEOUT));
+void GPIO_Configure(void) // stm32f10x_gpio.h 참고
+{
+    GPIO_InitTypeDef GPIO_InitStructure;
 
-    if ((RCC->CR & RCC_CR_HSERDY) != RESET) {
-        HSEStatus = (uint32_t)0x01;
-    }
-    else {
-        HSEStatus = (uint32_t)0x00;
-    }
+	// TODO: Initialize the GPIO pins using the structure 'GPIO_InitTypeDef' and the function 'GPIO_Init'
+	
+    /* JoyStick up, down pin setting */
+    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_5 | GPIO_Pin_2;
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IPU;
+    GPIO_Init(GPIOC, &GPIO_InitStructure);
+    
+    /* button pin setting */
+    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_11;
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IPU;
+    GPIO_Init(GPIOD, &GPIO_InitStructure);
+    
+    /* LED pin setting*/
+    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_2 | GPIO_Pin_3 | GPIO_Pin_4 | GPIO_Pin_7;
+    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;
+    GPIO_Init(GPIOD, &GPIO_InitStructure);
+	
+    /* UART pin setting */
+    //TX
+    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_9;
+    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;
+    GPIO_Init(GPIOA, &GPIO_InitStructure);
+    
+	//RX
+    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_10;
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IPU;
+    GPIO_Init(GPIOA, &GPIO_InitStructure);
+	
+}
 
-    if (HSEStatus == (uint32_t)0x01) {
-        /* Enable Prefetch Buffer */
-        FLASH->ACR |= FLASH_ACR_PRFTBE;
-        /* Flash 0 wait state */
-        FLASH->ACR &= (uint32_t)((uint32_t)~FLASH_ACR_LATENCY);
-        FLASH->ACR |= (uint32_t)FLASH_ACR_LATENCY_0;
+void EXTI_Configure(void) // stm32f10x_gpio.h 참고
+{
+    EXTI_InitTypeDef EXTI_InitStructure;
 
-//@TODO - 1 Set the clock
-        /* HCLK = SYSCLK */
-        RCC->CFGR |= (uint32_t)RCC_CFGR_HPRE_DIV1;
-        /* PCLK2 = HCLK / ?, use PPRE2 */
-        RCC->CFGR |= (uint32_t)RCC_CFGR_PPRE2_DIV2;
-        /* PCLK1 = HCLK */
-        RCC->CFGR |= (uint32_t)RCC_CFGR_PPRE1_DIV1;
+	// TODO: Select the GPIO pin (Joystick, button) used as EXTI Line using function 'GPIO_EXTILineConfig'
+	// TODO: Initialize the EXTI using the structure 'EXTI_InitTypeDef' and the function 'EXTI_Init'
+	
+    /* Joystick Down */
+	GPIO_EXTILineConfig(GPIO_PortSourceGPIOC, GPIO_PinSource2);
+    EXTI_InitStructure.EXTI_Line = EXTI_Line2;
+    EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Interrupt;
+    EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Falling;
+    EXTI_InitStructure.EXTI_LineCmd = ENABLE;
+    EXTI_Init(&EXTI_InitStructure);
 
-        /* Configure PLLs ------------------------------------------------------*/
-        RCC->CFGR &= (uint32_t)~(RCC_CFGR_PLLXTPRE | RCC_CFGR_PLLSRC | RCC_CFGR_PLLMULL);
-        RCC->CFGR |= (uint32_t)(RCC_CFGR_PLLXTPRE_PREDIV1 | RCC_CFGR_PLLSRC_PREDIV1 | RCC_CFGR_PLLMULL4);
+    /* Joystick Up */
+	GPIO_EXTILineConfig(GPIO_PortSourceGPIOC, GPIO_PinSource5);
+    EXTI_InitStructure.EXTI_Line = EXTI_Line5;
+    EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Interrupt;
+    EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Falling;
+    EXTI_InitStructure.EXTI_LineCmd = ENABLE;
+    EXTI_Init(&EXTI_InitStructure);
 
-        RCC->CFGR2 &= (uint32_t)~(RCC_CFGR2_PREDIV2 | RCC_CFGR2_PLL2MUL | RCC_CFGR2_PREDIV1 | RCC_CFGR2_PREDIV1SRC);
-        RCC->CFGR2 |= (uint32_t)(RCC_CFGR2_PREDIV2_DIV5 | RCC_CFGR2_PLL2MUL13 | RCC_CFGR2_PREDIV1SRC_PLL2 | RCC_CFGR2_PREDIV1_DIV5);
-//@End of TODO - 1
+    /* Button */
+    GPIO_EXTILineConfig(GPIO_PortSourceGPIOD, GPIO_PinSource11);
+    EXTI_InitStructure.EXTI_Line = EXTI_Line11;
+    EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Interrupt;
+    EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Falling;
+    EXTI_InitStructure.EXTI_LineCmd = ENABLE;
+    EXTI_Init(&EXTI_InitStructure);
+	
+	// NOTE: do not select the UART GPIO pin used as EXTI Line here
+}
 
-        /* Enable PLL2 */
-        RCC->CR |= RCC_CR_PLL2ON;
-        /* Wait till PLL2 is ready */
-        while ((RCC->CR & RCC_CR_PLL2RDY) == 0)
+void USART1_Init(void) // stm32f10x_usart.h 참고
+{
+	USART_InitTypeDef USART1_InitStructure;
+
+	// Enable the USART1 peripheral
+	USART_Cmd(USART1, ENABLE);
+	
+	// TODO: Initialize the USART using the structure 'USART_InitTypeDef' and the function 'USART_Init'
+	/* 
+       BaudRate: 9600
+       WordLength: 8bits
+       Parity: None
+       StopBits: 1bit
+       Hardware Flow Control: None
+     */
+    USART1_InitStructure.USART_BaudRate = (uint32_t) 9600;
+    USART1_InitStructure.USART_WordLength = (uint16_t) 8;
+    USART1_InitStructure.USART_Parity = (uint16_t) 0;
+    USART1_InitStructure.USART_StopBits = (uint16_t) 1;
+    USART1_InitStructure.USART_HardwareFlowControl = (uint16_t) 0;
+    USART_Init(USART1, &USART1_InitStructure);
+    
+	// TODO: Enable the USART1 RX interrupts using the function 'USART_ITConfig' and the argument value 'Receive Data register not empty interrupt'
+    USART_ITConfig(USART1, USART_IT_RXNE, ENABLE);
+	
+}
+
+void NVIC_Configure(void) { // misc.h 참고
+
+    NVIC_InitTypeDef NVIC_InitStructure;
+    
+    // TODO: fill the arg you want
+    NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);
+
+	// TODO: Initialize the NVIC using the structure 'NVIC_InitTypeDef' and the function 'NVIC_Init'
+	
+    // Joystick Down
+    NVIC_InitStructure.NVIC_IRQChannel = EXTI2_IRQn;
+    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0x1; // TODO
+    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0x0; // TODO
+    NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+    NVIC_Init(&NVIC_InitStructure);
+
+    // Joystick Up
+    NVIC_InitStructure.NVIC_IRQChannel = EXTI9_5_IRQn;
+    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0x2; // TODO
+    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0x0; // TODO
+    NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+    NVIC_Init(&NVIC_InitStructure);
+    
+    // User S1 Button
+    NVIC_InitStructure.NVIC_IRQChannel = EXTI15_10_IRQn;
+    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0x3; // TODO
+    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0x0; // TODO
+    NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+    NVIC_Init(&NVIC_InitStructure);
+
+    // UART1
+	// 'NVIC_EnableIRQ' is only required for USART setting
+    NVIC_EnableIRQ(USART1_IRQn);
+    NVIC_InitStructure.NVIC_IRQChannel = USART1_IRQn;
+    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0x0; // TODO
+    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0x0; // TODO
+    NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+    NVIC_Init(&NVIC_InitStructure);
+}
+
+void USART1_IRQHandler() {
+	uint16_t word;
+    if(USART_GetITStatus(USART1,USART_IT_RXNE)!=RESET){
+    	// the most recent received data by the USART1 peripheral
+        word = USART_ReceiveData(USART1);
+
+        // TODO implement, 키보드 입력 'd' 또는 'u'에 따라 동작
+        switch (word)
         {
+        case 'u':
+            sw_state = (sw_state & 0x02) | (0x00);
+            break;
+        case 'd':
+            sw_state = (sw_state & 0x02) | (0x01);
+            break;
+        default:
+            break;
         }
-        /* Enable PLL */
-        RCC->CR |= RCC_CR_PLLON;
-        /* Wait till PLL is ready */
-        while ((RCC->CR & RCC_CR_PLLRDY) == 0)
-        {
-        }
-        /* Select PLL as system clock source */
-        RCC->CFGR &= (uint32_t)((uint32_t)~(RCC_CFGR_SW));
-        RCC->CFGR |= (uint32_t)RCC_CFGR_SW_PLL;
-        /* Wait till PLL is used as system clock source */
-        while ((RCC->CFGR & (uint32_t)RCC_CFGR_SWS) != (uint32_t)0x08)
-        {
-        }
-        /* Select System Clock as output of MCO */
-//@TODO - 2 Set the MCO port for system clock output
-        RCC->CFGR &= ~(uint32_t)RCC_CFGR_MCO_SYSCLK;
-        RCC->CFGR |= (uint32_t)RCC_CFGR_MCO_SYSCLK;
-//@End of TODO - 2
-    }
-    else {
-        /* If HSE fails to start-up, the application will have wrong clock
-        configuration. User can add here some code to deal with this error */
+
+        // clear 'Read data register not empty' flag
+    	USART_ClearITPendingBit(USART1,USART_IT_RXNE);
     }
 }
 
-void RCC_Enable(void) {
-//@TODO - 3 RCC Setting
-    /*---------------------------- RCC Configuration -----------------------------*/
-    /* GPIO RCC Enable  */
-    /* UART Tx, Rx, MCO port */
-    RCC->APB2ENR |= RCC_APB2ENR_IOPAEN;
-    /* USART RCC Enable */
-    RCC->APB2ENR |= RCC_APB2ENR_USART1EN;
-  /* User S1 Button RCC Enable */
-    RCC->APB2ENR |= RCC_APB2ENR_IOPDEN;
+void EXTI15_10_IRQHandler(void) { // when the button is pressed
+
+	if (EXTI_GetITStatus(EXTI_Line11) != RESET) {
+		if (GPIO_ReadInputDataBit(GPIOD, GPIO_Pin_11) == Bit_RESET) {
+			sw_state = (0x02) | (sw_state & 0x01);
+		}
+        EXTI_ClearITPendingBit(EXTI_Line11);
+	}
 }
 
-void PortConfiguration(void) {
-//@TODO - 4 GPIO Configuration
-    /* Reset(Clear) Port A CRH - MCO, USART1 TX,RX*/
-    GPIOA->CRH &= ~(
-      (GPIO_CRH_CNF8 | GPIO_CRH_MODE8) |
-      (GPIO_CRH_CNF9 | GPIO_CRH_MODE9) |
-      (GPIO_CRH_CNF10 | GPIO_CRH_MODE10)
-  );
-    /* MCO Pin Configuration */
-    GPIOA->CRH |= (GPIO_CRH_CNF8_1 | GPIO_CRH_MODE8_0);
-    /* USART Pin Configuration */
-    GPIOA->CRH |= (
-      (GPIO_CRH_CNF9_1 | GPIO_CRH_MODE9_0) | 
-      (GPIO_CRH_CNF10_1)
-    );
-    
-    /* Reset(Clear) Port D CRH - User S1 Button */
-    GPIOD->CRH &= ~(GPIO_CRH_CNF11 | GPIO_CRH_MODE11);
-    /* User S1 Button Configuration */
-    GPIOD->CRH |= GPIO_CRH_CNF11_1;
+
+// TODO: Create Joystick interrupt handler functions
+/* Use "EXTIx_IRQHandler()" */
+// Joystic 'Up'
+void EXTI9_5_IRQHandler(void) {
+    if (EXTI_GetITStatus(EXTI_Line5) != RESET) {
+		if (GPIO_ReadInputDataBit(GPIOC, GPIO_Pin_5) == Bit_RESET) {
+            sw_state = (sw_state & 0x02) | (0x00);
+		}
+        EXTI_ClearITPendingBit(EXTI_Line5);
+	}
 }
 
-void UartInit(void) {
-    /*---------------------------- USART CR1 Configuration -----------------------*/
-    /* Clear M, PCE, PS, TE and RE bits */
-    USART1->CR1 &= ~(uint32_t)(USART_CR1_M | USART_CR1_PCE | USART_CR1_PS | USART_CR1_TE | USART_CR1_RE);
-    /* Configure the USART Word Length, Parity and mode ----------------------- */
-    /* Set the M bits according to USART_WordLength value */
-//@TODO - 6: WordLength : 8bit
-
-    /* Set PCE and PS bits according to USART_Parity value */
-//@TODO - 7: Parity : None
-    
-    /* Set TE and RE bits according to USART_Mode value */
-//@TODO - 8: Enable Tx and Rx
-    USART1->CR1 |= (uint32_t)(USART_CR1_TE | USART_CR1_RE);
-
-    /*---------------------------- USART CR2 Configuration -----------------------*/
-    /* Clear STOP[13:12] bits */
-    USART1->CR2 &= ~(uint32_t)(USART_CR2_STOP);
-    /* Configure the USART Stop Bits, Clock, CPOL, CPHA and LastBit ------------*/
-    USART1->CR2 &= ~(uint32_t)(USART_CR2_CPHA | USART_CR2_CPOL | USART_CR2_CLKEN);
-    /* Set STOP[13:12] bits according to USART_StopBits value */
-//@TODO - 9: Stop bit : 1bit
-    
-
-    /*---------------------------- USART CR3 Configuration -----------------------*/
-    /* Clear CTSE and RTSE bits */
-    USART1->CR3 &= ~(uint32_t)(USART_CR3_CTSE | USART_CR3_RTSE);
-    /* Configure the USART HFC -------------------------------------------------*/
-    /* Set CTSE and RTSE bits according to USART_HardwareFlowControl value */
-//@TODO - 10: CTS, RTS : disable
-
-
-    /*---------------------------- USART BRR Configuration -----------------------*/
-    /* Configure the USART Baud Rate -------------------------------------------*/
-    /* Determine the integer part */
-    /* Determine the fractional part */
-//@TODO - 11: Calculate & configure BRR
-    USART1->BRR |= (uint32_t)(0x70E);
-
-    /*---------------------------- USART Enable ----------------------------------*/
-    /* USART Enable Configuration */
-//@TODO - 12: Enable UART (UE)
-    USART1->CR1 |= USART_CR1_UE;
+// Joystic 'Down'
+void EXTI2_IRQHandler(void) {
+    if (EXTI_GetITStatus(EXTI_Line2) != RESET) {
+		if (GPIO_ReadInputDataBit(GPIOC, GPIO_Pin_2) == Bit_RESET) {
+            sw_state = (sw_state & 0x02) | (0x01);
+			
+		}
+        EXTI_ClearITPendingBit(EXTI_Line2);
+	}
 }
 
-void delay(void){
-    int i = 0;
-    for(i=0;i<1000000;i++);
+
+void Delay(void) {
+	int i;
+
+	for (i = 0; i < 2000000; i++) {}
 }
 
-void SendData(uint16_t data) {
-    /* Transmit Data */
-  USART1->DR = data;
-
-  /* Wait till TC is set */
-  while ((USART1->SR & USART_SR_TC) == 0);
+void sendDataUART1(uint16_t data) {
+	USART_SendData(USART1, data);
+	/* Wait till TC is set */
+	while ((USART1->SR & USART_SR_TC) == 0);
 }
 
-int main() {
-  int i;
-  char msg[] = "Hello Team09\r\n";
-  
-    SysInit();
-    SetSysClock();
-    RCC_Enable();
-    PortConfiguration();
-    UartInit();
-    
-    // if you need, init pin values here
-  
+int main(void)
+{
+    char msg[] = "TEAM09\r\n";
+    //uint8_t ledIdx = 0;
+
+    sw_state = 0x00;
+
+    SystemInit();
+
+    RCC_Configure();
+
+    GPIO_Configure();
+
+    EXTI_Configure();
+
+    USART1_Init();
+
+    NVIC_Configure();
 
     while (1) {
-    //@TODO - 13: Send the message when button is pressed
-    uint8_t msgInputPin = GPIO_ReadInputDataBit(GPIOD,GPIO_Pin_11);
+    	// TODO: implement
 
-    if(msgInputPin == Bit_RESET) {
-        char* pmsg = msg;
-        while(*pmsg != 0) {
-            USART_SendData(USART1, *pmsg);
-            pmsg++;
-            delay();
+    	if((sw_state & 0x02) == 0x02) {
+            char* pmsg = msg;
+            while(*msg != 0) {
+                sendDataUART1(*pmsg);
+                pmsg++;
+                //Delay();
+            }
+            sw_state = (0x00) | (sw_state & 0x01);
+        }
+    	
+        if((sw_state & 0x01) == 0x00) {
+            GPIO_ResetBits(GPIOD,GPIO_Pin_7);
+            GPIO_SetBits(GPIOD,GPIO_Pin_2);
+            Delay();
+
+            GPIO_ResetBits(GPIOD,GPIO_Pin_2);
+            GPIO_SetBits(GPIOD,GPIO_Pin_3);
+            Delay();
+            
+            GPIO_ResetBits(GPIOD,GPIO_Pin_3);
+            GPIO_SetBits(GPIOD,GPIO_Pin_4);
+            Delay();
+            
+            GPIO_ResetBits(GPIOD,GPIO_Pin_4);
+            GPIO_SetBits(GPIOD,GPIO_Pin_7);
+            Delay();
+        } else if((sw_state & 0x01) == 0x01) {
+            GPIO_ResetBits(GPIOD,GPIO_Pin_2);
+            GPIO_SetBits(GPIOD,GPIO_Pin_7);
+            Delay();
+
+            GPIO_ResetBits(GPIOD,GPIO_Pin_7);
+            GPIO_SetBits(GPIOD,GPIO_Pin_4);
+            Delay();
+            
+            GPIO_ResetBits(GPIOD,GPIO_Pin_4);
+            GPIO_SetBits(GPIOD,GPIO_Pin_3);
+            Delay();
+            
+            GPIO_ResetBits(GPIOD,GPIO_Pin_3);
+            GPIO_SetBits(GPIOD,GPIO_Pin_2);
+            Delay();
         }
     }
-
-  }
-
-}// end main
+    return 0;
+}
