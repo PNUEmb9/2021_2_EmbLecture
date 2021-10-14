@@ -72,7 +72,7 @@ void GPIO_Configure(void) // stm32f10x_gpio.h 참고
     //TX
     GPIO_InitStructure.GPIO_Pin = GPIO_Pin_9;
     GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;
     GPIO_Init(GPIOA, &GPIO_InitStructure);
     
 	//RX
@@ -131,11 +131,12 @@ void USART1_Init(void) // stm32f10x_usart.h 참고
        StopBits: 1bit
        Hardware Flow Control: None
      */
-    USART1_InitStructure.USART_BaudRate = (uint32_t) 9600;
-    USART1_InitStructure.USART_WordLength = (uint16_t) 8;
-    USART1_InitStructure.USART_Parity = (uint16_t) 0;
-    USART1_InitStructure.USART_StopBits = (uint16_t) 1;
-    USART1_InitStructure.USART_HardwareFlowControl = (uint16_t) 0;
+    USART1_InitStructure.USART_BaudRate = 9600;
+    USART1_InitStructure.USART_WordLength = (uint16_t) USART_WordLength_8b;
+    USART1_InitStructure.USART_Mode = USART_Mode_Rx | USART_Mode_Tx;
+    USART1_InitStructure.USART_Parity = (uint16_t) USART_Parity_No;
+    USART1_InitStructure.USART_StopBits = (uint16_t) USART_StopBits_1;
+    USART1_InitStructure.USART_HardwareFlowControl = (uint16_t) USART_HardwareFlowControl_None;
     USART_Init(USART1, &USART1_InitStructure);
     
 	// TODO: Enable the USART1 RX interrupts using the function 'USART_ITConfig' and the argument value 'Receive Data register not empty interrupt'
@@ -255,9 +256,10 @@ void sendDataUART1(uint16_t data) {
 }
 
 int main(void)
-{
+{   
+    uint16_t ledPin[] = {GPIO_Pin_2, GPIO_Pin_3, GPIO_Pin_4, GPIO_Pin_7}; 
+    unsigned int ledIdx = 3;
     char msg[] = "TEAM09\r\n";
-    //uint8_t ledIdx = 0;
 
     sw_state = 0x00;
 
@@ -278,47 +280,23 @@ int main(void)
 
     	if((sw_state & 0x02) == 0x02) {
             char* pmsg = msg;
-            while(*msg != 0) {
+            while(*pmsg != 0) {
                 sendDataUART1(*pmsg);
                 pmsg++;
-                //Delay();
             }
-            sw_state = (0x00) | (sw_state & 0x01);
+
+            sw_state = (sw_state & 0x01);
         }
     	
         if((sw_state & 0x01) == 0x00) {
-            GPIO_ResetBits(GPIOD,GPIO_Pin_7);
-            GPIO_SetBits(GPIOD,GPIO_Pin_2);
-            Delay();
-
-            GPIO_ResetBits(GPIOD,GPIO_Pin_2);
-            GPIO_SetBits(GPIOD,GPIO_Pin_3);
-            Delay();
-            
-            GPIO_ResetBits(GPIOD,GPIO_Pin_3);
-            GPIO_SetBits(GPIOD,GPIO_Pin_4);
-            Delay();
-            
-            GPIO_ResetBits(GPIOD,GPIO_Pin_4);
-            GPIO_SetBits(GPIOD,GPIO_Pin_7);
-            Delay();
+            ledIdx++;
+            ledIdx %= 4;
         } else if((sw_state & 0x01) == 0x01) {
-            GPIO_ResetBits(GPIOD,GPIO_Pin_2);
-            GPIO_SetBits(GPIOD,GPIO_Pin_7);
-            Delay();
-
-            GPIO_ResetBits(GPIOD,GPIO_Pin_7);
-            GPIO_SetBits(GPIOD,GPIO_Pin_4);
-            Delay();
-            
-            GPIO_ResetBits(GPIOD,GPIO_Pin_4);
-            GPIO_SetBits(GPIOD,GPIO_Pin_3);
-            Delay();
-            
-            GPIO_ResetBits(GPIOD,GPIO_Pin_3);
-            GPIO_SetBits(GPIOD,GPIO_Pin_2);
-            Delay();
+            ledIdx--;
+            ledIdx %= 4;
         }
+        GPIO_Write(GPIOD, ledPin[ledIdx]);
+        Delay();
     }
     return 0;
 }
