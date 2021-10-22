@@ -22,6 +22,7 @@ void Delay(void);
 void sendDataUART1(uint16_t data);
 
 char sw_state; // 기본 상태; 1234 방향으로 led 점멸 중
+char debounce_flag=0;
 
 //---------------------------------------------------------------------------------------------------
 
@@ -211,9 +212,10 @@ void USART1_IRQHandler() {
 void EXTI15_10_IRQHandler(void) { // when the button is pressed
 
 	if (EXTI_GetITStatus(EXTI_Line11) != RESET) {
+        for(int i=0;i<100000;i++) {} // For button debouncing
 		if (GPIO_ReadInputDataBit(GPIOD, GPIO_Pin_11) == Bit_RESET) {
-			sw_state = (0x02) | (sw_state & 0x01);
-		}
+                  sw_state = (0x02) | (sw_state & 0x01);
+		} 
         EXTI_ClearITPendingBit(EXTI_Line11);
 	}
 }
