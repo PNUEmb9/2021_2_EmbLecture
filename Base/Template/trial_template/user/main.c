@@ -9,7 +9,7 @@
 void RCC_Configure(void);
 void GPIO_Configure(void);
 void EXTI_Configure(void);
-void USART_Init(void);
+void USARTS_Init(void);
 void NVIC_Configure(void);
 
 void EXTI15_10_IRQHandler(void);
@@ -32,18 +32,23 @@ char flagBT = 0;
 
 void RCC_Configure(void) // stm32f10x_rcc.h 참고
 {
+    
+	/* USART pin clock enable */
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
+
 	/* USART1 clock enable */
     RCC_APB2PeriphClockCmd(RCC_APB2ENR_USART1EN, ENABLE);
 
 	/* USART2 clock enable */
-    RCC_APB2PeriphClockCmd(RCC_APB2ENR_USART2EN, ENABLE);
+    RCC_APB1PeriphClockCmd(RCC_APB1ENR_USART2EN, ENABLE);
+
+	/* AFIO clock enable */
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_AFIO, ENABLE);
 }
 
 void GPIO_Configure(void) // stm32f10x_gpio.h 참고
 {
     GPIO_InitTypeDef GPIO_InitStructure;
-
-
 
     /* UART between PC pin setting */
     //TX
@@ -72,7 +77,7 @@ void GPIO_Configure(void) // stm32f10x_gpio.h 참고
 }
 
 
-void USART_Init(void)
+void USARTS_Init(void)
 {
 	USART_InitTypeDef USART_InitStructure;
 
@@ -100,61 +105,47 @@ void USART_Init(void)
 
     USART_ITConfig(USART1, USART_IT_RXNE, ENABLE);
     USART_ITConfig(USART2, USART_IT_RXNE, ENABLE);
-	
 }
 
 void NVIC_Configure(void) { // misc.h 참고
 
     NVIC_InitTypeDef NVIC_InitStructure;
     
-    // TODO: fill the arg you want
     NVIC_PriorityGroupConfig(NVIC_PriorityGroup_1);
 
-	// TODO: Initialize the NVIC using the structure 'NVIC_InitTypeDef' and the function 'NVIC_Init'
-
     // UART1
-	// 'NVIC_EnableIRQ' is only required for USART setting
     NVIC_EnableIRQ(USART1_IRQn);
     NVIC_InitStructure.NVIC_IRQChannel = USART1_IRQn;
-    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0x0; // TODO
-    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0x0; // TODO
+    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0x0;
+    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0x0;
     NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
     NVIC_Init(&NVIC_InitStructure);
 
     // UART2
     NVIC_EnableIRQ(USART2_IRQn);
     NVIC_InitStructure.NVIC_IRQChannel = USART2_IRQn;
-    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0x1; // TODO
-    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0x0; // TODO
+    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0x1; 
+    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0x0;
     NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
     NVIC_Init(&NVIC_InitStructure);
 }
 
 void USART1_IRQHandler() {
     if(USART_GetITStatus(USART1,USART_IT_RXNE)!=RESET){
-    	
         flagPC = 1;
         dataBufferFromPC = USART_ReceiveData(USART1);
         
-        // clear 'Read data register not empty' flag
     	USART_ClearITPendingBit(USART1,USART_IT_RXNE);
     }
 }
 
 void USART2_IRQHandler() {
-    if(USART_GetITStatus(USART1,USART_IT_RXNE)!=RESET){
-    	
+    if(USART_GetITStatus(USART2,USART_IT_RXNE)!=RESET){
         flagBT = 1;
         dataBufferFromBT = USART_ReceiveData(USART2);
         
     	USART_ClearITPendingBit(USART2,USART_IT_RXNE);
     }
-}
-
-void Delay(void) {
-	int i;
-
-	for (i = 0; i < 2000000; i++) {}
 }
 
 void sendDataUART1(uint16_t data) {
@@ -167,26 +158,17 @@ void sendDataUART2(uint16_t data) {
 
 int main(void)
 {   
-    uint16_t ledPin[] = {GPIO_Pin_2, GPIO_Pin_3, GPIO_Pin_4, GPIO_Pin_7}; 
-    unsigned int ledIdx = 3;
-
-    sw_state = 0x00;
-
     SystemInit();
 
     RCC_Configure();
 
     GPIO_Configure();
 
-    EXTI_Configure();
-
-    USART_Init();
+    USARTS_Init();
 
     NVIC_Configure();
 
     while (1) {
-    	// TODO: implement
-
     	if(flagPC == 1) {
             sendDataUART2(dataBufferFromPC);
             flagPC = 0;
