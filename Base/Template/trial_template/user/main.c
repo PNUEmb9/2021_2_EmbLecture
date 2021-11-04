@@ -15,7 +15,7 @@ void GPIO_Configure(void);
 void ADC_Configure(void);
 void NVIC_Configure(void);
 
-void ADC1_2_IRQHandler(void)
+void ADC1_2_IRQHandler(void);
 
 void Delay(void);
 
@@ -24,7 +24,7 @@ void sendDataUART2(uint16_t data);
 
 uint16_t lumiValue;
 
-int color[12] = {WHITE, CYAN, BLUE,, MAGENTA, LGRAY, GREEN, YELLOW, BROWM, BRRED, GRAY};
+int color[12] = {WHITE, CYAN, BLUE, MAGENTA, LGRAY, GREEN, YELLOW, BROWN, BRRED, GRAY};
 
 //---------------------------------------------------------------------------------------------------
 
@@ -96,24 +96,6 @@ void NVIC_Configure(void) { // misc.h 참고
     NVIC_Init(&NVIC_InitStructure);
 }
 
-void USART1_IRQHandler() {
-    if(USART_GetITStatus(USART1,USART_IT_RXNE)!=RESET){
-        flagPC = 1;
-        dataBufferFromPC = USART_ReceiveData(USART1);
-        
-    	USART_ClearITPendingBit(USART1,USART_IT_RXNE);
-    }
-}
-
-void USART2_IRQHandler() {
-    if(USART_GetITStatus(USART2,USART_IT_RXNE)!=RESET){
-        flagBT = 1;
-        dataBufferFromBT = USART_ReceiveData(USART2);
-        
-    	USART_ClearITPendingBit(USART2,USART_IT_RXNE);
-    }
-}
-
 void ADC1_2_IRQHandler() {
     if(ADC_GetITStatus(ADC1,ADC_IT_EOC)!=RESET) {
         lumiValue = ADC_GetConversionValue(ADC1);
@@ -138,12 +120,11 @@ int main(void)
     uint16_t touchX = 0;
     uint16_t touchY = 0;
     while (1) {
-    	Touch_GetXY(*touchX, *touchY, 1);
+    	Touch_GetXY(&touchX, &touchY, 1);
         LCD_ShowCharString(40, 40, "THU_TEAM09", BLACK, WHITE);
-        LCD_ShowCharString(40, 60, touchX, BLACK, WHITE);
-        LCD_ShowCharString(40, 70, touchY, BLACK, WHITE);
-        LCD_ShowCharString(40, 70, touchY, BLACK, WHITE);
-        LCD_ShowNum(40, 90, lumiValue, 10, BLACK, WHITE);
+        LCD_ShowNum(40, 60, touchX, 10, BLACK, WHITE);
+        LCD_ShowNum(40, 70, touchY, 10, BLACK, WHITE);
+        LCD_ShowNum(40, 100, lumiValue, 10, BLACK, WHITE);
         LCD_DrawCircle(touchX, touchY, 3);
     }
     return 0;
