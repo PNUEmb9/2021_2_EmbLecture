@@ -1,9 +1,13 @@
 #include "stm32f10x.h"
-#include "stm32f10x_gpio.h"
-#include "stm32f10x_usart.h"
-#include "stm32f10x_rcc.h"
-
+#include "core_cm3.h"
 #include "misc.h"
+#include "stm32f10x_gpio.h"
+#include "stm32f10x_rcc.h"
+#include "stm32f10x_usart.h"
+#include "stm32f10x_adc.h"
+#include "lcd.h"
+#include "touch.h"
+
 
 /* function prototype */
 void RCC_Configure(void);
@@ -21,11 +25,7 @@ void Delay(void);
 void sendDataUART1(uint16_t data);
 void sendDataUART2(uint16_t data);
 
-char dataBufferFromPC;
-char flagPC = 0;
-
-char dataBufferFromBT;
-char flagBT = 0;
+uint16_t lumiValue;
 
 
 //---------------------------------------------------------------------------------------------------
