@@ -13,12 +13,9 @@
 void RCC_Configure(void);
 void GPIO_Configure(void);
 void ADC_Configure(void);
-void USARTS_Init(void);
 void NVIC_Configure(void);
 
-void EXTI15_10_IRQHandler(void);
-void EXTI9_5_IRQHandler(void);
-void EXTI2_IRQHandler(void);
+void ADC1_2_IRQHandler(void)
 
 void Delay(void);
 
@@ -27,6 +24,7 @@ void sendDataUART2(uint16_t data);
 
 uint16_t lumiValue;
 
+int color[12] = {WHITE, CYAN, BLUE,, MAGENTA, LGRAY, GREEN, YELLOW, BROWM, BRRED, GRAY};
 
 //---------------------------------------------------------------------------------------------------
 
@@ -36,15 +34,6 @@ void RCC_Configure(void) // stm32f10x_rcc.h 참고
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_ADC1, ENABLE);
 	/* USART pin clock enable */
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
-
-	/* USART1 clock enable */
-    RCC_APB2PeriphClockCmd(RCC_APB2ENR_USART1EN, ENABLE);
-
-	/* USART2 clock enable */
-    RCC_APB1PeriphClockCmd(RCC_APB1ENR_USART2EN, ENABLE);
-
-	/* AFIO clock enable */
-    RCC_APB2PeriphClockCmd(RCC_APB2Periph_AFIO, ENABLE);
 }
 
 void GPIO_Configure(void) // stm32f10x_gpio.h 참고
@@ -54,31 +43,6 @@ void GPIO_Configure(void) // stm32f10x_gpio.h 참고
     GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0;
     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AIN;
     GPIO_Init(GPIOA, &GPIO_InitStructure);
-
-    /* UART between PC pin setting */
-    //TX
-    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_9;
-    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;
-    GPIO_Init(GPIOA, &GPIO_InitStructure);
-    
-	//RX
-    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_10;
-    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IPU;
-    GPIO_Init(GPIOA, &GPIO_InitStructure);
-	
-    /* UART between bluetooth pin setting */
-    //TX
-    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_2;
-    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;
-    GPIO_Init(GPIOA, &GPIO_InitStructure);
-    
-	//RX
-    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_3;
-    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IPU;
-    GPIO_Init(GPIOA, &GPIO_InitStructure);
-	
 }
 
 void ADC_Configure(void) {
@@ -103,38 +67,6 @@ void ADC_Configure(void) {
     while(ADC_GetCalibrationStatus) {}
 
     ADC_SoftwareStartConvCmd(ADC1, ENABLE);
-    
-}
-
-
-void USARTS_Init(void)
-{
-	USART_InitTypeDef USART_InitStructure;
-
-	// Enable the USART1, USART2 peripheral
-	USART_Cmd(USART1, ENABLE);
-    USART_Cmd(USART2, ENABLE);
-	
-	/* 
-       BaudRate: 9600
-       WordLength: 8bits
-       Parity: None
-       StopBits: 1bit
-       Hardware Flow Control: None
-     */
-    USART_InitStructure.USART_BaudRate = 9600;
-    USART_InitStructure.USART_WordLength = (uint16_t) USART_WordLength_8b;
-    USART_InitStructure.USART_Mode = USART_Mode_Rx | USART_Mode_Tx;
-    USART_InitStructure.USART_Parity = (uint16_t) USART_Parity_No;
-    USART_InitStructure.USART_StopBits = (uint16_t) USART_StopBits_1;
-    USART_InitStructure.USART_HardwareFlowControl = (uint16_t) USART_HardwareFlowControl_None;
-
-    USART_Init(USART1, &USART_InitStructure);
-    USART_Init(USART2, &USART_InitStructure);
-    
-
-    USART_ITConfig(USART1, USART_IT_RXNE, ENABLE);
-    USART_ITConfig(USART2, USART_IT_RXNE, ENABLE);
 }
 
 void NVIC_Configure(void) { // misc.h 참고
@@ -189,34 +121,30 @@ void ADC1_2_IRQHandler() {
     }
 }
 
-void sendDataUART1(uint16_t data) {
-	USART_SendData(USART1, data);
-}
-
-void sendDataUART2(uint16_t data) {
-	USART_SendData(USART2, data);
-}
-
 int main(void)
 {   
     SystemInit();
-
     RCC_Configure();
-
     GPIO_Configure();
-
-    USARTS_Init();
-
+    ADC_Configure();
     NVIC_Configure();
+    //---------------
 
+    LCD_Init();
+    Touch_Configuration();
+    Touch_Adjust();
+    LCD_Clear(WHITE);
+
+    uint16_t touchX = 0;
+    uint16_t touchY = 0;
     while (1) {
-    	if(flagPC == 1) {
-            sendDataUART2(dataBufferFromPC);
-            flagPC = 0;
-        } else if (flagBT == 1) {
-            sendDataUART1(dataBufferFromBT);
-            flagBT = 0;
-        }
+    	Touch_GetXY(*touchX, *touchY, 1);
+        LCD_ShowCharString(40, 40, "THU_TEAM09", BLACK, WHITE);
+        LCD_ShowCharString(40, 60, touchX, BLACK, WHITE);
+        LCD_ShowCharString(40, 70, touchY, BLACK, WHITE);
+        LCD_ShowCharString(40, 70, touchY, BLACK, WHITE);
+        LCD_ShowNum(40, 90, lumiValue, 10, BLACK, WHITE);
+        LCD_DrawCircle(touchX, touchY, 3);
     }
     return 0;
 }
