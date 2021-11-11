@@ -1,222 +1,121 @@
 #include "stm32f10x.h"
+#include "core_cm3.h"
+#include "misc.h"
+#include "stm32f10x_gpio.h"
+#include "stm32f10x_rcc.h"
+#include "stm32f10x_usart.h"
+#include "stm32f10x_adc.h"
+#include "lcd.h"
+#include "touch.h"
 
-void SysInit(void) {
-    /* Set HSION bit */
-    /* Internal Clock Enable */
-    RCC->CR |= (uint32_t)0x00000001; //HSION
 
-    /* Reset SW, HPRE, PPRE1, PPRE2, ADCPRE and MCO bits */
-    RCC->CFGR &= (uint32_t)0xF0FF0000;
+/* function prototype */
+void RCC_Configure(void);
+void GPIO_Configure(void);
+void NVIC_Configure(void);
+void TIM_Configure(void);
 
-    /* Reset HSEON, CSSON and PLLON bits */
-    RCC->CR &= (uint32_t)0xFEF6FFFF;
+void TIM2_IRQHandler(void);
+void Delay(void);
 
-    /* Reset HSEBYP bit */
-    RCC->CR &= (uint32_t)0xFFFBFFFF;
+uint16_t ledPowerFlag = 0;
+uint16_t led1ToggleFlag = 0;
+uint16_t led2ToggleFlag = 0;
+uint16_t led1Counter = 0;
+uint16_t led2Counter = 0;
+int color[12] = {WHITE, CYAN, BLUE, RED, MAGENTA, LGRAY, GREEN, YELLOW, BROWN, BRRED, GRAY};
+char* ledStatus[2] = {"OFF", "ON"};
 
-    /* Reset PLLSRC, PLLXTPRE, PLLMUL and USBPRE/OTGFSPRE bits */
-    RCC->CFGR &= (uint32_t)0xFF80FFFF;
+//---------------------------------------------------------------------------------------------------
 
-    /* Reset PLL2ON and PLL3ON bits */
-    RCC->CR &= (uint32_t)0xEBFFFFFF;
-
-    /* Disable all interrupts and clear pending bits  */
-    RCC->CIR = 0x00FF0000;
-
-    /* Reset CFGR2 register */
-    RCC->CFGR2 = 0x00000000;
+void RCC_Configure(void) // stm32f10x_rcc.h 참고
+{
+    // TIM3 clock enable
+    RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM2, ENABLE);
+	/* LED pin clock enable */
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOD, ENABLE);
 }
 
-void SetSysClock(void) {
-    volatile uint32_t StartUpCounter = 0, HSEStatus = 0;
-    /* SYSCLK, HCLK, PCLK2 and PCLK1 configuration ---------------------------*/
-    /* Enable HSE */
-    RCC->CR |= ((uint32_t)RCC_CR_HSEON);
-    /* Wait till HSE is ready and if Time out is reached exit */
-    do {
-        HSEStatus = RCC->CR & RCC_CR_HSERDY;
-        StartUpCounter++;
-    } while ((HSEStatus == 0) && (StartUpCounter != HSE_STARTUP_TIMEOUT));
+void GPIO_Configure(void) // stm32f10x_gpio.h 참고
+{
+    GPIO_InitTypeDef GPIO_InitStructure;
 
-    if ((RCC->CR & RCC_CR_HSERDY) != RESET) {
-        HSEStatus = (uint32_t)0x01;
-    }
-    else {
-        HSEStatus = (uint32_t)0x00;
-    }
+    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_2 | GPIO_Pin_3;
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;
+    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_10MHz;
+    GPIO_Init(GPIOD, &GPIO_InitStructure);
+}
 
-    if (HSEStatus == (uint32_t)0x01) {
-        /* Enable Prefetch Buffer */
-        FLASH->ACR |= FLASH_ACR_PRFTBE;
-        /* Flash 0 wait state */
-        FLASH->ACR &= (uint32_t)((uint32_t)~FLASH_ACR_LATENCY);
-        FLASH->ACR |= (uint32_t)FLASH_ACR_LATENCY_0;
+void TIM_Configure(void) {
+    TIM_TimeBaseInitTypeDef TIM_TimeBaseStructure;
 
-//@TODO - 1 Set the clock
-        /* HCLK = SYSCLK */
-        RCC->CFGR |= (uint32_t)RCC_CFGR_HPRE_DIV1;
-        /* PCLK2 = HCLK / ?, use PPRE2 */
-        RCC->CFGR |= (uint32_t)RCC_CFGR_PPRE2_DIV2;
-        /* PCLK1 = HCLK */
-        RCC->CFGR |= (uint32_t)RCC_CFGR_PPRE1_DIV1;
+    prescale = (uint16_t) (SystemCoreClock / 10000);
+    TIM_TimeBaseStructure.TIM_Period = 10000;         
+    TIM_TimeBaseStructure.TIM_Prescaler = prescale;
+    TIM_TimeBaseStructure.TIM_ClockDivision = 0;
+    TIM_TimeBaseStructure.TIM_CounterMode = TIM_CounterMode_Down;
+    TIM_TimeBaseInit(TIM2, &TIM_TimeBaseStructure);
+    TIM_ARRPreloadConfig(TIM2, ENABLE);
+    TIM_Cmd(TIM2, ENABLE);
 
-        /* Configure PLLs ------------------------------------------------------*/
-        RCC->CFGR &= (uint32_t)~(RCC_CFGR_PLLXTPRE | RCC_CFGR_PLLSRC | RCC_CFGR_PLLMULL);
-        RCC->CFGR |= (uint32_t)(RCC_CFGR_PLLXTPRE_PREDIV1 | RCC_CFGR_PLLSRC_PREDIV1 | RCC_CFGR_PLLMULL4);
+    TIM_ITConfig(TIM3,TIM_IT_Update,ENABLE);
+}
 
-        RCC->CFGR2 &= (uint32_t)~(RCC_CFGR2_PREDIV2 | RCC_CFGR2_PLL2MUL | RCC_CFGR2_PREDIV1 | RCC_CFGR2_PREDIV1SRC);
-        RCC->CFGR2 |= (uint32_t)(RCC_CFGR2_PREDIV2_DIV5 | RCC_CFGR2_PLL2MUL13 | RCC_CFGR2_PREDIV1SRC_PLL2 | RCC_CFGR2_PREDIV1_DIV5);
-//@End of TODO - 1
+void NVIC_Configure(void) { // misc.h 참고
 
-        /* Enable PLL2 */
-        RCC->CR |= RCC_CR_PLL2ON;
-        /* Wait till PLL2 is ready */
-        while ((RCC->CR & RCC_CR_PLL2RDY) == 0)
-        {
-        }
-        /* Enable PLL */
-        RCC->CR |= RCC_CR_PLLON;
-        /* Wait till PLL is ready */
-        while ((RCC->CR & RCC_CR_PLLRDY) == 0)
-        {
-        }
-        /* Select PLL as system clock source */
-        RCC->CFGR &= (uint32_t)((uint32_t)~(RCC_CFGR_SW));
-        RCC->CFGR |= (uint32_t)RCC_CFGR_SW_PLL;
-        /* Wait till PLL is used as system clock source */
-        while ((RCC->CFGR & (uint32_t)RCC_CFGR_SWS) != (uint32_t)0x08)
-        {
-        }
-        /* Select System Clock as output of MCO */
-//@TODO - 2 Set the MCO port for system clock output
-        RCC->CFGR &= ~(uint32_t)RCC_CFGR_MCO_SYSCLK;
-        RCC->CFGR |= (uint32_t)RCC_CFGR_MCO_SYSCLK;
-//@End of TODO - 2
-    }
-    else {
-        /* If HSE fails to start-up, the application will have wrong clock
-        configuration. User can add here some code to deal with this error */
+    NVIC_InitTypeDef NVIC_InitStructure;
+    
+    NVIC_PriorityGroupConfig(NVIC_PriorityGroup_1);
+    
+    //TIM3
+    NVIC_EnableIRQ(TIM2_IRQn);
+    NVIC_InitStructure.NVIC_IRQChannel = TIM2_IRQn;
+    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0x0;
+    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0x0;
+    NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+    
+    NVIC_Init(&NVIC_InitStructure);
+}
+
+void TIM2_IRQHandler(void) {
+    if(TIM_GetITStatus(TIM2, TIM_IT_Update) != RESET) {
+        led1Counter = (led1Counter+1) % 2;
+        led2Counter = (led2Counter+1) % 6;
+        led1ToggleFlag = led1ToggleFlag ^(!led1Counter);
+        led2ToggleFlag = led2ToggleFlag ^(!led2Counter);
     }
 }
 
-void RCC_Enable(void) {
-//@TODO - 3 RCC Setting
-    /*---------------------------- RCC Configuration -----------------------------*/
-    /* GPIO RCC Enable  */
-    /* UART Tx, Rx, MCO port */
-    RCC->APB2ENR |= RCC_APB2ENR_IOPAEN;
-    /* USART RCC Enable */
-    RCC->APB2ENR |= RCC_APB2ENR_USART1EN;
-  /* User S1 Button RCC Enable */
-    RCC->APB2ENR |= RCC_APB2ENR_IOPDEN;
-}
+int main(void)
+{   
+    SystemInit();
+    RCC_Configure();
+    GPIO_Configure();
+    NVIC_Configure();
 
-void PortConfiguration(void) {
-//@TODO - 4 GPIO Configuration
-    /* Reset(Clear) Port A CRH - MCO, USART1 TX,RX*/
-    GPIOA->CRH &= ~(
-      (GPIO_CRH_CNF8 | GPIO_CRH_MODE8) |
-      (GPIO_CRH_CNF9 | GPIO_CRH_MODE9) |
-      (GPIO_CRH_CNF10 | GPIO_CRH_MODE10)
-  );
-    /* MCO Pin Configuration */
-    GPIOA->CRH |= (GPIO_CRH_CNF8_1 | GPIO_CRH_MODE8_0);
-    /* USART Pin Configuration */
-    GPIOA->CRH |= (
-      (GPIO_CRH_CNF9_1 | GPIO_CRH_MODE9_0) | 
-      (GPIO_CRH_CNF10_1)
-    );
-    
-    /* Reset(Clear) Port D CRH - User S1 Button */
-    GPIOD->CRH &= ~(GPIO_CRH_CNF11 | GPIO_CRH_MODE11);
-    /* User S1 Button Configuration */
-    GPIOD->CRH |= GPIO_CRH_CNF11_1;
-}
+    LCD_Init();
+    Touch_Configuration();
+    Touch_Adjust();
+    LCD_Clear(WHITE);
 
-void UartInit(void) {
-    /*---------------------------- USART CR1 Configuration -----------------------*/
-    /* Clear M, PCE, PS, TE and RE bits */
-    USART1->CR1 &= ~(uint32_t)(USART_CR1_M | USART_CR1_PCE | USART_CR1_PS | USART_CR1_TE | USART_CR1_RE);
-    /* Configure the USART Word Length, Parity and mode ----------------------- */
-    /* Set the M bits according to USART_WordLength value */
-//@TODO - 6: WordLength : 8bit
-
-    /* Set PCE and PS bits according to USART_Parity value */
-//@TODO - 7: Parity : None
-    
-    /* Set TE and RE bits according to USART_Mode value */
-//@TODO - 8: Enable Tx and Rx
-    USART1->CR1 |= (uint32_t)(USART_CR1_TE | USART_CR1_RE);
-
-    /*---------------------------- USART CR2 Configuration -----------------------*/
-    /* Clear STOP[13:12] bits */
-    USART1->CR2 &= ~(uint32_t)(USART_CR2_STOP);
-    /* Configure the USART Stop Bits, Clock, CPOL, CPHA and LastBit ------------*/
-    USART1->CR2 &= ~(uint32_t)(USART_CR2_CPHA | USART_CR2_CPOL | USART_CR2_CLKEN);
-    /* Set STOP[13:12] bits according to USART_StopBits value */
-//@TODO - 9: Stop bit : 1bit
-    
-
-    /*---------------------------- USART CR3 Configuration -----------------------*/
-    /* Clear CTSE and RTSE bits */
-    USART1->CR3 &= ~(uint32_t)(USART_CR3_CTSE | USART_CR3_RTSE);
-    /* Configure the USART HFC -------------------------------------------------*/
-    /* Set CTSE and RTSE bits according to USART_HardwareFlowControl value */
-//@TODO - 10: CTS, RTS : disable
-
-
-    /*---------------------------- USART BRR Configuration -----------------------*/
-    /* Configure the USART Baud Rate -------------------------------------------*/
-    /* Determine the integer part */
-    /* Determine the fractional part */
-//@TODO - 11: Calculate & configure BRR
-    USART1->BRR |= (uint32_t)(0x70E);
-
-    /*---------------------------- USART Enable ----------------------------------*/
-    /* USART Enable Configuration */
-//@TODO - 12: Enable UART (UE)
-    USART1->CR1 |= USART_CR1_UE;
-}
-
-void delay(void){
-    int i = 0;
-    for(i=0;i<10000;i++);
-}
-
-void SendData(uint16_t data) {
-    /* Transmit Data */
-  USART1->DR = data;
-
-  /* Wait till TC is set */
-  while ((USART1->SR & USART_SR_TC) == 0);
-}
-
-int main() {
-  int i;
-  char msg[] = "Hello Team09\r\n";
-  
-    SysInit();
-    SetSysClock();
-    RCC_Enable();
-    PortConfiguration();
-    UartInit();
-    
-    // if you need, init pin values here
-  
+    uint16_t rawTouchX = 0;
+    uint16_t rawTouchY = 0;
+    uint16_t touchX = 0;
+    uint16_t touchY = 0;
 
     while (1) {
-    //@TODO - 13: Send the message when button is pressed
-    uint8_t msgInputPin = GPIO_ReadInputDataBit(GPIOD,GPIO_Pin_11);
+        LCD_ShowString(40, 40, "THU_TEAM09", BLACK, WHITE);
+        LCD_ShowString(40, 60, ledStatus[led1ToggleFlag & ledPowerFlag], BLACK, WHITE);
+        LCD_ShowString(40, 80, ledStatus[led2ToggleFlag & ledPowerFlag], BLACK, WHITE);
+        LCD_DrawRectangle(40, 100, 80, 140)
+        LCD_ShowString(50, 110, "BTN", BLACK, WHITE);
+        GPIO_Write(GPIOD, (GPIO_Pin_2 * led1ToggleFlag) | (GPIO_Pin_2 * led1ToggleFlag));
 
-    if(msgInputPin == Bit_RESET) {
-        char* pmsg = msg;
-        while(*pmsg != 0) {
-            USART_SendData(USART1, *pmsg);
-            pmsg++;
-            delay();
+        Touch_GetXY(&rawTouchX, &rawTouchY, 1); //Wait until Touched
+        Convert_Pos(rawTouchX, rawTouchY, &touchX, &touchY);
+        if(touchX >= 40 && touchX <= 100 && touchY >= 80 && touchY <= 140) {
+            ledPowerFlag != ledPowerFlag;
         }
     }
-
-  }
-
-}// end main
+    return 0;
+}

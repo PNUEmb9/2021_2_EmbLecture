@@ -110,7 +110,6 @@ int main(void)
     while (1) {
     	Touch_GetXY(&rawTouchX, &rawTouchY, 1); //Wait until Touched
         Convert_Pos(rawTouchX, rawTouchY, &touchX, &touchY);
-        ADC_SoftwareStartConvCmd(ADC1, ENABLE); // Trigger interrupt
         LCD_ShowString(40, 40, "THU_TEAM09", BLACK, WHITE);
         LCD_ShowNum(40, 60, touchX, 4, BLACK, WHITE);
         LCD_ShowNum(40, 80, touchY, 4, BLACK, WHITE);
