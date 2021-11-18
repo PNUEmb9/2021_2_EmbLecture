@@ -9,21 +9,22 @@
 #include "touch.h"
 
 
-/* function prototype */
 void RCC_Configure(void);
 void GPIO_Configure(void);
 void DMA_Configure(void);
 void ADC_Configure(void);
-void NVIC_Configure(void);
 
 void ADC1_2_IRQHandler(void);
 
 void Delay(void);
 
 int color[12] = {WHITE, CYAN, BLUE, RED, MAGENTA, LGRAY, GREEN, YELLOW, BROWN, BRRED, GRAY};
-uint32_t lumiThreshold = 1000;
+uint32_t lumiThreshold = 500;
 
 volatile uint32_t ADCValue[1];
+uint32_t prevADCValue = 0;
+uint32_t colorFlag = WHITE;
+
 //---------------------------------------------------------------------------------------------------
 
 void RCC_Configure(void) // stm32f10x_rcc.h 참고
@@ -49,7 +50,7 @@ void GPIO_Configure(void) // stm32f10x_gpio.h 참고
 void DMA_Configure(void) {
     DMA_InitTypeDef DMA_InitStructure;
     DMA_DeInit(DMA1_Channel1);
-    DMA_InitStructure.DMA_PeripheralBaseAddr = ADC1_BASE + 0x4E;
+    DMA_InitStructure.DMA_PeripheralBaseAddr = &(ADC1->DR);
     DMA_InitStructure.DMA_MemoryBaseAddr = (uint32_t) &ADCValue[0];
     DMA_InitStructure.DMA_DIR = DMA_DIR_PeripheralSRC;
     DMA_InitStructure.DMA_BufferSize = 4;
@@ -88,22 +89,6 @@ void ADC_Configure(void) {
     ADC_SoftwareStartConvCmd(ADC1, ENABLE);
 }
 
-void NVIC_Configure(void) { // misc.h 참고
-
-    NVIC_InitTypeDef NVIC_InitStructure;
-    
-    NVIC_PriorityGroupConfig(NVIC_PriorityGroup_1);
-    
-    //ADC1
-    NVIC_EnableIRQ(ADC1_2_IRQn);
-    NVIC_InitStructure.NVIC_IRQChannel = ADC1_2_IRQn;
-    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0x0;
-    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0x0;
-    NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
-    
-    NVIC_Init(&NVIC_InitStructure);
-}
-
 int main(void)
 {   
     SystemInit();
@@ -111,7 +96,6 @@ int main(void)
     GPIO_Configure();
     DMA_Configure();
     ADC_Configure();
-    NVIC_Configure();
     //---------------
 
     LCD_Init();
@@ -124,13 +108,21 @@ int main(void)
     uint16_t touchX = 0;
     uint16_t touchY = 0;
     while (1) {
-        LCD_Clear(ADCValue[0] > lumiThreshold ? WHITE : GRAY);
-    	Touch_GetXY(&rawTouchX, &rawTouchY, 1); //Wait until Touched
-        Convert_Pos(rawTouchX, rawTouchY, &touchX, &touchY);
-        LCD_ShowString(40, 40, "THU_TEAM09", BLACK, WHITE);
-        LCD_ShowNum(40, 60, touchX, 4, BLACK, WHITE);
-        LCD_ShowNum(40, 80, touchY, 4, BLACK, WHITE);
-        LCD_ShowNum(40, 100, ADCValue[0], 4, BLACK, WHITE);
+        // Clear LCD when ADC value crossing threshold.
+        if(ADCValue[0] < lumiThreshold) {
+            if(prevADCValue > lumiThreshold) {
+                LCD_Clear(GRAY);
+                colorFlag = GRAY;
+            }
+        } else {
+            if(prevADCValue < lumiThreshold) {
+                LCD_Clear(WHITE);
+                colorFlag = WHITE;
+            }
+        }
+        prevADCValue = ADCValue[0];
+        LCD_ShowString(40, 40, "THU_TEAM09", BLACK, colorFlag);
+        LCD_ShowNum(40, 100, ADCValue[0], 4, BLACK, colorFlag);
     }
     return 0;
 }
