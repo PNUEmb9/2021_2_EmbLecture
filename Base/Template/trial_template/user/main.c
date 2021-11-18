@@ -12,96 +12,117 @@
 /* function prototype */
 void RCC_Configure(void);
 void GPIO_Configure(void);
-void DMA_Configure(void);
-void ADC_Configure(void);
 void NVIC_Configure(void);
+void TIM_Configure(void);
+void change(uint16_t pulse);
 
-void ADC1_2_IRQHandler(void);
+void TIM2_IRQHandler(void);
 
-void Delay(void);
-
+uint16_t prescale;
+uint16_t motorFlag = 0;
+uint16_t ledPowerFlag = 0;
+uint16_t led1ToggleFlag = 0;
+uint16_t led2ToggleFlag = 0;
+uint16_t led1Counter = 0;
+uint16_t led2Counter = 0;
 int color[12] = {WHITE, CYAN, BLUE, RED, MAGENTA, LGRAY, GREEN, YELLOW, BROWN, BRRED, GRAY};
-uint32_t lumiThreshold = 1000;
+char* ledStatus[2] = {"OFF", "ON"};
+int motorIdx[3] = {700, 1500, 2600};
 
-volatile uint32_t ADCValue[1];
 //---------------------------------------------------------------------------------------------------
+
+TIM_TimeBaseInitTypeDef TIM_TimeBaseStructure;
+TIM_OCInitTypeDef TIM_OCInitStructure;
 
 void RCC_Configure(void) // stm32f10x_rcc.h 참고
 {
-    // DMA1 clock enable
-    RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, ENABLE);
-    // ADC1 clock enable
-    RCC_APB2PeriphClockCmd(RCC_APB2Periph_ADC1, ENABLE);
-	// CDS cell pin clock enable
-    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
+    // TIM2 clock enable
+    RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM2, ENABLE);
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOD, ENABLE);
+
+    RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM3, ENABLE);
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
+	/* LED pin clock enable */
 }
 
 void GPIO_Configure(void) // stm32f10x_gpio.h 참고
 {
     GPIO_InitTypeDef GPIO_InitStructure;
 
-    // CDS cell GPIO configure
-    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_2;
-    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AIN;
-    GPIO_Init(GPIOA, &GPIO_InitStructure);
+    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_2 | GPIO_Pin_3;
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;
+    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_10MHz;
+    GPIO_Init(GPIOD, &GPIO_InitStructure);
+
+	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0;
+	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;
+	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+	GPIO_Init(GPIOB, &GPIO_InitStructure);
 }
 
-void DMA_Configure(void) {
-    DMA_InitTypeDef DMA_InitStructure;
-    DMA_DeInit(DMA1_Channel1);
-    DMA_InitStructure.DMA_PeripheralBaseAddr = ADC1_BASE + 0x4E;
-    DMA_InitStructure.DMA_MemoryBaseAddr = (uint32_t) &ADCValue[0];
-    DMA_InitStructure.DMA_DIR = DMA_DIR_PeripheralSRC;
-    DMA_InitStructure.DMA_BufferSize = 4;
-    DMA_InitStructure.DMA_PeripheralInc = DMA_PeripheralInc_Disable;
-    DMA_InitStructure.DMA_MemoryInc = DMA_MemoryInc_Disable;
-    DMA_InitStructure.DMA_PeripheralDataSize = DMA_PeripheralDataSize_HalfWord;
-    DMA_InitStructure.DMA_MemoryDataSize = DMA_MemoryDataSize_HalfWord;
-    DMA_InitStructure.DMA_Mode = DMA_Mode_Circular;
-    DMA_InitStructure.DMA_Priority = DMA_Priority_High;
-    DMA_InitStructure.DMA_M2M = DMA_M2M_Disable;
-    DMA_Init(DMA1_Channel1, &DMA_InitStructure);
-    DMA_Cmd(DMA1_Channel1, ENABLE);
-}
+void TIM_Configure(void) {
+    TIM_TimeBaseStructure.TIM_Period = 10000;         
+    TIM_TimeBaseStructure.TIM_Prescaler = 7200;
+    TIM_TimeBaseStructure.TIM_ClockDivision = TIM_CKD_DIV1;
+    TIM_TimeBaseStructure.TIM_CounterMode = TIM_CounterMode_Down;
+    TIM_TimeBaseStructure.TIM_RepetitionCounter = 0;
+    TIM_TimeBaseInit(TIM2, &TIM_TimeBaseStructure);
+    TIM_ARRPreloadConfig(TIM2, ENABLE);
 
-void ADC_Configure(void) {
-    ADC_InitTypeDef ADC_InitStructure;
-    ADC_InitStructure.ADC_Mode = ADC_Mode_Independent;
-    ADC_InitStructure.ADC_ScanConvMode = DISABLE;
-    ADC_InitStructure.ADC_ContinuousConvMode = ENABLE;
-    ADC_InitStructure.ADC_ExternalTrigConv = ADC_ExternalTrigConv_None;
-    ADC_InitStructure.ADC_DataAlign = ADC_DataAlign_Right;
-    ADC_InitStructure.ADC_NbrOfChannel = 1;
+    TIM_TimeBaseStructure.TIM_Prescaler = (uint16_t) (SystemCoreClock / 1000000) - 1;
+    TIM_TimeBaseStructure.TIM_Period = 20000-1;
+    TIM_TimeBaseStructure.TIM_ClockDivision = 0;
+    TIM_TimeBaseStructure.TIM_CounterMode = TIM_CounterMode_Down;
+    TIM_TimeBaseInit(TIM3, &TIM_TimeBaseStructure);
 
-    ADC_Init(ADC1, &ADC_InitStructure);
+    TIM_OCInitStructure.TIM_OCMode = TIM_OCMode_PWM1;
+    TIM_OCInitStructure.TIM_OCPolarity = TIM_OCPolarity_High;
+    TIM_OCInitStructure.TIM_OutputState = TIM_OutputState_Enable;
+    TIM_OCInitStructure.TIM_Pulse = 1500; // us
+    TIM_OC3Init(TIM3, &TIM_OCInitStructure);
+    TIM_OC3PreloadConfig(TIM3, TIM_OCPreload_Disable);
+    TIM_ARRPreloadConfig(TIM3, ENABLE);
 
-    ADC_RegularChannelConfig(ADC1,ADC_Channel_2,1,ADC_SampleTime_55Cycles5);
-    ADC_Cmd(ADC1,ENABLE);
-    ADC_DMACmd(ADC1, ENABLE);
-
-    ADC_ResetCalibration(ADC1);
-    while (ADC_GetResetCalibrationStatus(ADC1)) {}
-    
-    ADC_StartCalibration(ADC1);
-    while(ADC_GetCalibrationStatus(ADC1)) {}
-
-    ADC_SoftwareStartConvCmd(ADC1, ENABLE);
+    TIM_ITConfig(TIM2, TIM_IT_Update, ENABLE);
+    TIM_Cmd(TIM2, ENABLE);
+    TIM_Cmd(TIM3, ENABLE);
 }
 
 void NVIC_Configure(void) { // misc.h 참고
-
     NVIC_InitTypeDef NVIC_InitStructure;
-    
     NVIC_PriorityGroupConfig(NVIC_PriorityGroup_1);
-    
-    //ADC1
-    NVIC_EnableIRQ(ADC1_2_IRQn);
-    NVIC_InitStructure.NVIC_IRQChannel = ADC1_2_IRQn;
+
+    //TIM2
+    NVIC_EnableIRQ(TIM2_IRQn);
+    NVIC_InitStructure.NVIC_IRQChannel = TIM2_IRQn;
     NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0x0;
-    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0x0;
+    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0x1;
     NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
     
     NVIC_Init(&NVIC_InitStructure);
+}
+
+void TIM2_IRQHandler(void) {
+    if(TIM_GetITStatus(TIM2, TIM_IT_Update) != RESET) {
+        led2Counter = (led2Counter+1) % 5; 
+        led1ToggleFlag = !led1ToggleFlag;
+        led2ToggleFlag = led2ToggleFlag ^(!led2Counter);
+        change(motorIdx[motorFlag]);
+        motorFlag = (motorFlag +1) % 3;
+
+        TIM_ClearITPendingBit(TIM2,TIM_IT_Update);
+    }
+}
+
+void change(uint16_t per)
+{
+    uint16_t pwm_pulse;
+    pwm_pulse = per;
+    TIM_OCInitStructure.TIM_OCMode = TIM_OCMode_PWM1;
+    TIM_OCInitStructure.TIM_OCPolarity = TIM_OCPolarity_High;
+    TIM_OCInitStructure.TIM_OutputState = TIM_OutputState_Enable;
+    TIM_OCInitStructure.TIM_Pulse = pwm_pulse;
+    TIM_OC3Init(TIM3, &TIM_OCInitStructure);
 }
 
 int main(void)
@@ -109,10 +130,8 @@ int main(void)
     SystemInit();
     RCC_Configure();
     GPIO_Configure();
-    DMA_Configure();
-    ADC_Configure();
+    TIM_Configure();
     NVIC_Configure();
-    //---------------
 
     LCD_Init();
     Touch_Configuration();
@@ -123,14 +142,23 @@ int main(void)
     uint16_t rawTouchY = 0;
     uint16_t touchX = 0;
     uint16_t touchY = 0;
+
     while (1) {
-        LCD_Clear(ADCValue[0] > lumiThreshold ? WHITE : GRAY);
-    	Touch_GetXY(&rawTouchX, &rawTouchY, 1); //Wait until Touched
-        Convert_Pos(rawTouchX, rawTouchY, &touchX, &touchY);
         LCD_ShowString(40, 40, "THU_TEAM09", BLACK, WHITE);
-        LCD_ShowNum(40, 60, touchX, 4, BLACK, WHITE);
-        LCD_ShowNum(40, 80, touchY, 4, BLACK, WHITE);
-        LCD_ShowNum(40, 100, ADCValue[0], 4, BLACK, WHITE);
+        LCD_Fill(40,60,90,100, WHITE);
+        LCD_ShowString(40, 60, ledStatus[led1ToggleFlag & ledPowerFlag], BLACK, WHITE);
+        LCD_ShowString(40, 80, ledStatus[led2ToggleFlag & ledPowerFlag], BLACK, WHITE);
+        LCD_DrawRectangle(40, 100, 80, 140);
+        LCD_ShowString(50, 110, "BTN", BLACK, WHITE);
+        GPIO_Write(GPIOD, ((GPIO_Pin_2 * led1ToggleFlag) | (GPIO_Pin_3 * led2ToggleFlag))*ledPowerFlag);
+
+        Touch_GetXY(&rawTouchX, &rawTouchY, 0); //Wait until Touched
+        Convert_Pos(rawTouchX, rawTouchY, &touchX, &touchY);
+        if(touchX >= 40 && touchX <= 100 && touchY >= 80 && touchY <= 140) {
+            ledPowerFlag = !ledPowerFlag;
+            touchX = 0;
+            touchY = 0;
+        }
     }
     return 0;
 }

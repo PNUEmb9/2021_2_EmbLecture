@@ -14,12 +14,12 @@ void RCC_Configure(void);
 void GPIO_Configure(void);
 void NVIC_Configure(void);
 void TIM_Configure(void);
-void changePWM(uint16_t pulse);
+void change(uint16_t pulse);
 
 void TIM2_IRQHandler(void);
 
 uint16_t prescale;
-uint16_t motorFlag = 3;
+uint16_t motorFlag = 0;
 uint16_t ledPowerFlag = 0;
 uint16_t led1ToggleFlag = 0;
 uint16_t led2ToggleFlag = 0;
@@ -27,6 +27,7 @@ uint16_t led1Counter = 0;
 uint16_t led2Counter = 0;
 int color[12] = {WHITE, CYAN, BLUE, RED, MAGENTA, LGRAY, GREEN, YELLOW, BROWN, BRRED, GRAY};
 char* ledStatus[2] = {"OFF", "ON"};
+int motorIdx[3] = {700, 1500, 2600};
 
 //---------------------------------------------------------------------------------------------------
 
@@ -73,6 +74,7 @@ void TIM_Configure(void) {
     TIM_TimeBaseStructure.TIM_ClockDivision = 0;
     TIM_TimeBaseStructure.TIM_CounterMode = TIM_CounterMode_Down;
     TIM_TimeBaseInit(TIM3, &TIM_TimeBaseStructure);
+
     TIM_OCInitStructure.TIM_OCMode = TIM_OCMode_PWM1;
     TIM_OCInitStructure.TIM_OCPolarity = TIM_OCPolarity_High;
     TIM_OCInitStructure.TIM_OutputState = TIM_OutputState_Enable;
@@ -103,17 +105,19 @@ void NVIC_Configure(void) { // misc.h 참고
 void TIM2_IRQHandler(void) {
     if(TIM_GetITStatus(TIM2, TIM_IT_Update) != RESET) {
         led2Counter = (led2Counter+1) % 5; 
-        if(motorFlag++ == 13){ motorFlag = 3; }
         led1ToggleFlag = !led1ToggleFlag;
         led2ToggleFlag = led2ToggleFlag ^(!led2Counter);
+        change(motorIdx[motorFlag]);
+        motorFlag = (motorFlag +1) % 3;
+
         TIM_ClearITPendingBit(TIM2,TIM_IT_Update);
     }
 }
 
-void change(int per)
+void change(uint16_t per)
 {
-    int pwm_pulse;
-    pwm_pulse = per * 20000 / 100;
+    uint16_t pwm_pulse;
+    pwm_pulse = per;
     TIM_OCInitStructure.TIM_OCMode = TIM_OCMode_PWM1;
     TIM_OCInitStructure.TIM_OCPolarity = TIM_OCPolarity_High;
     TIM_OCInitStructure.TIM_OutputState = TIM_OutputState_Enable;
@@ -140,8 +144,8 @@ int main(void)
     uint16_t touchY = 0;
 
     while (1) {
-        change(motorFlag);
         LCD_ShowString(40, 40, "THU_TEAM09", BLACK, WHITE);
+        LCD_Fill(40,60,90,100, WHITE);
         LCD_ShowString(40, 60, ledStatus[led1ToggleFlag & ledPowerFlag], BLACK, WHITE);
         LCD_ShowString(40, 80, ledStatus[led2ToggleFlag & ledPowerFlag], BLACK, WHITE);
         LCD_DrawRectangle(40, 100, 80, 140);
